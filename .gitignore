@@ -1,0 +1,18 @@
+# Arquivos do ambiente virtual  
+venv/  
+.env  
+
+# Arquivos de cache e metadados do Jupyter Notebook  
+.ipynb_checkpoints/  
+
+# Arquivos de modelo treinado  
+*.pkl  
+
+# Dados brutos e processados (se não quiser versioná-los)  
+data/raw/  
+data/processed/  
+
+# Configurações e logs  
+__pycache__/  
+*.log  
+.DS_Store  
