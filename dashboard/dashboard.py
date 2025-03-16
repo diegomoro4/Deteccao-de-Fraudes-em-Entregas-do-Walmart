@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 
 # Carregar os dados
 def load_data():
@@ -14,13 +15,18 @@ st.set_page_config(page_title="Dashboard Walmart", layout="wide")
 
 # Barra lateral para filtros
 st.sidebar.title("Filtros")
-selected_region = st.sidebar.selectbox("Selecione a Região", ["Todas"] + list(df["region"].unique()))
+
+# Ordenar as regiões em ordem alfabética
+regioes_ordenadas = sorted(df["region"].unique())
+
+# Criar botões de seleção para regiões (exibição vertical)
+selected_region = st.sidebar.radio(
+    "Selecione a Região:", 
+    options=["Todas"] + regioes_ordenadas
+)
 
 # Filtrar os dados com base na região selecionada
-if selected_region != "Todas":
-    df_filtered = df[df["region"] == selected_region]
-else:
-    df_filtered = df
+df_filtered = df if selected_region == "Todas" else df[df["region"] == selected_region]
 
 # KPIs Gerais (para todas as regiões ou região selecionada)
 total_pedidos = df_filtered["order_id"].nunique()
@@ -52,19 +58,25 @@ impacto_financeiro = df_filtered[df_filtered["items_missing"] > 0]["order_amount
 st.title("Visão Geral - Dashboard Walmart")
 
 # KPIs Principais
-st.markdown("### Indicadores-Chave de Desempenho (KPIs)")
-col1, col2, col3, col4, col5 = st.columns(5)
+st.markdown("#### Indicadores-Chave de Desempenho (KPIs)")
 
+# Primeira linha com três colunas
+col1, col2, col3 = st.columns(3)
 col1.metric("Total de Pedidos", total_pedidos)
-col2.metric("Pedidos com Itens Faltantes", total_pedidos_faltantes)
-col3.metric("Taxa Média de Faltantes (%)", f"{taxa_media_faltantes:.2%}")
+col2.metric("Pedidos c/ Faltantes", total_pedidos_faltantes)
+col3.metric("(%) Itens Faltantes", f"{taxa_media_faltantes:.2%}")
+
+# Segunda linha com duas colunas
+col4, col5 = st.columns(2)
 col4.metric(
     f"Motorista Top: {motorista_top['driver_name']}",
-    f"Pedidos: {motorista_top['total_pedidos']}, Itens Faltantes: {motorista_top['itens_faltantes']}",
+    f"Pedidos: {motorista_top['total_pedidos']}",
+    f"Itens Faltantes: {motorista_top['itens_faltantes']}",
 )
 col5.metric(
     f"Cliente Top: {cliente_top['customer_name']}",
-    f"Pedidos: {cliente_top['total_pedidos']}, Itens Faltantes: {cliente_top['itens_faltantes']}",
+    f"Pedidos: {cliente_top['total_pedidos']}",
+    f"Itens Faltantes: {cliente_top['itens_faltantes']}",
 )
 
 # Gráficos por Região
@@ -97,14 +109,18 @@ col2.plotly_chart(fig_taxa_faltantes, use_container_width=True)
 if selected_region != "Todas":
     st.markdown(f"### Detalhes da Região Selecionada: {selected_region}")
     
+    # Filtrar pedidos com itens faltantes
+    df_faltantes = df_filtered[df_filtered["items_missing"] > 0]
+    
     # Tabela detalhada para a região selecionada, ordenada pelo maior impacto financeiro
-    tabela_detalhada = df_filtered.groupby(["driver_name"]).agg(
+    tabela_detalhada = df_faltantes.groupby(["driver_name"]).agg(
         total_entregas=("order_id", "count"),
         itens_faltantes=("items_missing", "sum"),
         taxa_media_faltantes=("missing_rate", "mean"),
-        impacto_financeiro=("order_amount", "sum")
+        impacto_financeiro=("order_amount", "sum")  # Soma apenas dos pedidos com itens faltantes
     ).reset_index().sort_values(by="impacto_financeiro", ascending=False)
     
-    st.dataframe(tabela_detalhada)
+    st.dataframe(tabela_detalhada.head(10))
+
 
 
