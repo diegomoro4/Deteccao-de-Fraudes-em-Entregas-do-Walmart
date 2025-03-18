@@ -84,29 +84,91 @@ col8.metric("Impacto Financeiro", f"$ {impacto_financeiro:,.2f}")
 
 # Gráficos por Região
 st.markdown("### Análise por Região")
-col1, col2 = st.columns(2)
 
-fig_total_pedidos = px.bar(
-    df.groupby("region").agg(total_pedidos=("order_id", "count")).reset_index(),
-    x="region", y="total_pedidos", title="Total de Pedidos por Região",
-    labels={"region": "Região", "total_pedidos": "Total de Pedidos"},
-    color="total_pedidos"
-)
-col1.plotly_chart(fig_total_pedidos, use_container_width=True)
+# Criar uma função para ajustar cores com base na região selecionada
+def ajustar_cores(df, coluna_regiao, regiao_selecionada):
+    if regiao_selecionada != "Todas":
+        df["opacity"] = df[coluna_regiao].apply(lambda x: 1 if x == regiao_selecionada else 0.5)
+    else:
+        df["opacity"] = 1
+    return df
 
-fig_taxa_faltantes = px.bar(
-    df[df["items_missing"] > 0]
-    .groupby("region")
-    .agg(taxa_media=("missing_rate", "mean"))
-    .reset_index(),
+# Gráfico 1: Total de Pedidos e Total de Pedidos com Itens Faltantes por Região
+df_grouped_pedidos = df.groupby("region").agg(
+    total_pedidos=("order_id", "count"),
+    pedidos_com_faltantes=("order_id", lambda x: (df.loc[x.index, "items_missing"] > 0).sum())
+).reset_index()
+
+# Ajustar cores para destacar a região selecionada
+df_grouped_pedidos = ajustar_cores(df_grouped_pedidos, "region", selected_region)
+
+fig_pedidos = px.bar(
+    df_grouped_pedidos.melt(id_vars=["region", "opacity"], value_vars=["total_pedidos", "pedidos_com_faltantes"]),
     x="region",
-    y="taxa_media",
-    title="Taxa Média de Produtos Faltantes por Região",
-    labels={"region": "Região", "taxa_media": "Taxa Média"},
-    color="taxa_media"
+    y="value",
+    color="variable",
+    barmode="group",
+    title="Total de Pedidos e Total de Pedidos com Itens Faltantes por Região",
+    labels={"region": "Região", "value": "Número de Pedidos", "variable": "Métrica"},
+    opacity=df_grouped_pedidos["opacity"],
+    text="value"  # Adicionar valores nas barras
 )
 
-col2.plotly_chart(fig_taxa_faltantes, use_container_width=True)
+# Adicionar valores formatados nas barras
+fig_pedidos.update_traces(texttemplate="%{text}", textposition="outside")
+
+st.plotly_chart(fig_pedidos, use_container_width=True)
+
+# Gráfico 2: Número de Itens Entregues e Itens Faltantes por Região
+df_grouped_itens = df.groupby("region").agg(
+    itens_entregues=("items_delivered", "sum"),
+    itens_faltantes=("items_missing", "sum")
+).reset_index()
+
+# Ajustar cores para destacar a região selecionada
+df_grouped_itens = ajustar_cores(df_grouped_itens, "region", selected_region)
+
+fig_itens = px.bar(
+    df_grouped_itens.melt(id_vars=["region", "opacity"], value_vars=["itens_entregues", "itens_faltantes"]),
+    x="region",
+    y="value",
+    color="variable",
+    barmode="group",
+    title="Número de Itens Entregues e Itens Faltantes por Região",
+    labels={"region": "Região", "value": "Número de Itens", "variable": "Métrica"},
+    opacity=df_grouped_itens["opacity"],
+    text="value"  # Adicionar valores nas barras
+)    # Adicionar valores formatados nas barras
+
+fig_itens.update_traces(texttemplate="%{text}", textposition="outside")
+
+st.plotly_chart(fig_itens, use_container_width=True)
+
+# Gráfico 3: Impacto Financeiro Comparado com Receita
+df_financeiro = df.groupby("region").agg(
+    receita_total=("order_amount", "sum"),
+    impacto_financeiro=("order_amount", lambda x: (df.loc[x.index, "items_missing"] > 0).sum())
+).reset_index()
+
+# Ajustar cores para destacar a região selecionada
+df_financeiro = ajustar_cores(df_financeiro, "region", selected_region)
+
+fig_financeiro = px.bar(
+    df_financeiro.melt(id_vars=["region", "opacity"], value_vars=["receita_total", "impacto_financeiro"]),
+    x="region",
+    y="value",
+    color="variable",
+    barmode="group",
+    title="Impacto Financeiro Comparado com Receita por Região",
+    labels={"region": "Região", "value": "$ Valor ($)", "variable": "Métrica"},
+    opacity=df_financeiro["opacity"],
+    text="value"
+)
+
+# Adicionar valores nas barras
+fig_financeiro.update_traces(texttemplate="$ %{text:.2f}", textposition="outside")
+
+st.plotly_chart(fig_financeiro, use_container_width=True)
 
 # Detalhes da Região Selecionada
 if selected_region != "Todas":
