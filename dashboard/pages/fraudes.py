@@ -28,7 +28,115 @@ selected_region = st.sidebar.radio(
 # Aplicar filtro
 df_filtered = df if selected_region == "Todas" else df[df["region"] == selected_region]
 
-# Seção 1: Tendências Temporais
+# Função para normalizar as categorias
+def normalize_category(category):
+    if isinstance(category, str) and category.startswith("["):
+        # Extrair a primeira categoria dentro da lista
+        category = category.strip("[]").split(",")[0].strip("'").strip()
+    if category in ["Supermarket", "Electronics"]:
+        return category
+    return None  # Ignorar outras categorias
+
+# Aplicar a função na coluna 'category'
+df["category_cleaned"] = df["category"].apply(normalize_category)
+
+# Filtrar os dados com base na região selecionada e categorias válidas
+df_filtered_categoria = df[df["category_cleaned"].notnull()]
+df_filtered_categoria = df_filtered_categoria if selected_region == "Todas" else df_filtered_categoria[df_filtered_categoria["region"] == selected_region]
+
+# Seção 1: KPIs Resumidos
+st.markdown("## KPIs Resumidos")
+
+# Linha 1: Pedidos fraudulentos e itens faltantes (%)
+col1, col2, col3 = st.columns(3)
+
+# Número de pedidos fraudulentos
+fraudes_totais = df_filtered_categoria[df_filtered_categoria["fraud_flag"] == 1]["order_id"].nunique()
+col1.metric("Pedidos Fraudulentos", fraudes_totais)
+
+# Número de itens faltantes por categoria (com percentual)
+itens_faltantes_categoria = df_filtered_categoria.groupby("category_cleaned").agg(
+    total_itens_faltantes=("items_missing", "sum"),
+    total_itens=("items_delivered", "sum")
+).reset_index()
+itens_faltantes_categoria["percentual_faltantes"] = (
+    itens_faltantes_categoria["total_itens_faltantes"] /
+    (itens_faltantes_categoria["total_itens_faltantes"] + itens_faltantes_categoria["total_itens"])
+) * 100
+
+supermarket_percentual = itens_faltantes_categoria.loc[itens_faltantes_categoria["category_cleaned"] == "Supermarket", "percentual_faltantes"]
+electronics_percentual = itens_faltantes_categoria.loc[itens_faltantes_categoria["category_cleaned"] == "Electronics", "percentual_faltantes"]
+
+col2.metric(
+    "Itens Faltantes (%) (Supermarket)", 
+    f"{supermarket_percentual.values[0]:.2f}%" if not supermarket_percentual.empty else "0%"
+)
+col3.metric(
+    "Itens Faltantes (%) (Electronics)", 
+    f"{electronics_percentual.values[0]:.2f}%" if not electronics_percentual.empty else "0%"
+)
+
+# Linha 2: Produtos mais reportados
+col4, col5 = st.columns(2)
+
+# Produto mais reportado por categoria
+produto_por_categoria = df_filtered_categoria.groupby("category_cleaned").agg(
+    produto_mais_faltante=("product_name", lambda x: x.value_counts().idxmax() if not x.empty else "Nenhum")
+).reset_index()
+
+# Limpar os nomes dos produtos (remover colchetes e aspas)
+produto_por_categoria["produto_mais_faltante"] = produto_por_categoria["produto_mais_faltante"].apply(lambda x: x.strip("[]").replace("'", ""))
+
+produto_supermarket = produto_por_categoria.loc[produto_por_categoria["category_cleaned"] == "Supermarket", "produto_mais_faltante"]
+produto_electronics = produto_por_categoria.loc[produto_por_categoria["category_cleaned"] == "Electronics", "produto_mais_faltante"]
+
+col4.metric(
+    "Produto Mais Reportado (Electronics)", 
+    produto_electronics.values[0] if not produto_electronics.empty else "Nenhum"
+)
+col5.metric(
+    "Produto Mais Reportado (Supermarket)", 
+    produto_supermarket.values[0] if not produto_supermarket.empty else "Nenhum"
+)
+
+# Seção 2: Análise de Categorias e Produtos
+st.markdown("## Análise de Categorias e Produtos")
+
+# Aplicar a função na coluna 'category'
+df["category_cleaned"] = df["category"].apply(normalize_category)
+
+# Filtrar os dados com base na região selecionada e categorias válidas
+df_filtered_categoria = df[df["category_cleaned"].notnull()]
+df_filtered_categoria = df_filtered_categoria if selected_region == "Todas" else df_filtered_categoria[df_filtered_categoria["region"] == selected_region]
+
+# Agrupar os dados por categoria limpa e calcular o total de itens faltantes e impacto financeiro
+df_categoria = df_filtered_categoria.groupby("category_cleaned").agg(
+    itens_faltantes=("items_missing", "sum"),
+    impacto_financeiro=("order_amount", "sum")  # Soma do valor financeiro por categoria
+).reset_index()
+
+# Criar gráfico de barras para as categorias mais associadas a itens faltantes
+fig_categoria = px.bar(
+    df_categoria,
+    x="category_cleaned",
+    y="itens_faltantes",
+    title=f"Categorias mais Associadas a Itens Faltantes ({selected_region})",
+    labels={"category_cleaned": "Categoria", "itens_faltantes": "Itens Faltantes"},
+    color="category_cleaned",
+    text="impacto_financeiro"  # Adicionar valores financeiros diretamente nas barras
+)
+
+# Formatando os valores financeiros exibidos nas barras
+fig_categoria.update_traces(
+    texttemplate="$ %{text:,.2f}",  # Formatar como valores monetários
+    textposition="outside"         # Exibir os valores fora das barras
+)
+
+# Exibir o gráfico no Streamlit
+st.plotly_chart(fig_categoria, use_container_width=True)
+
+
+# Seção 3: Tendências Temporais
 st.markdown("## Tendências Temporais")
 
 # Gráfico 1: Pedidos com Itens Faltantes por Hora do Dia
@@ -151,89 +259,7 @@ fig_mes.add_scatter(
 # Exibir o gráfico no Streamlit
 st.plotly_chart(fig_mes, use_container_width=True)
 
-# Seção 2: Perfil de Motoristas e Clientes
-st.markdown("## Perfil de Motoristas e Clientes")
-
-# Gráfico 4: Idade do Motorista vs Pedidos com Itens Faltantes
-
-# Agrupar os dados por idade do motorista
-df_motorista_idade = df_filtered.groupby("age").agg(
-    pedidos_com_faltantes=("order_id", lambda x: (df.loc[x.index, "items_missing"] > 0).sum())
-).reset_index()
-
-# Criar gráfico de barras mostrando a relação entre idade do motorista e pedidos com itens faltantes
-fig_motorista_idade = px.bar(
-    df_motorista_idade,
-    x="age",
-    y="pedidos_com_faltantes",
-    title="Pedidos com Itens Faltantes por Idade dos Motoristas",
-    labels={"age": "Idade do Motorista", "pedidos_com_faltantes": "Pedidos com Faltantes"},
-    color_discrete_sequence=["#636EFA"]
-)
-
-# Exibir o gráfico no Streamlit
-st.plotly_chart(fig_motorista_idade, use_container_width=True)
-
-
-# Gráfico 5: Idade do Cliente vs Pedidos com Itens Faltantes
-
-# Agrupar os dados por idade do cliente
-df_cliente_idade = df_filtered.groupby("customer_age").agg(
-    pedidos_com_faltantes=("order_id", lambda x: (df.loc[x.index, "items_missing"] > 0).sum())
-).reset_index()
-
-# Criar gráfico de barras mostrando a relação entre idade do cliente e pedidos com itens faltantes
-fig_cliente_idade = px.bar(
-    df_cliente_idade,
-    x="customer_age",
-    y="pedidos_com_faltantes",
-    title="Pedidos com Itens Faltantes por Idade dos Clientes",
-    labels={"customer_age": "Idade do Cliente", "pedidos_com_faltantes": "Pedidos com Faltantes"},
-    color_discrete_sequence=["#EF553B"]
-)
-
-# Exibir o gráfico no Streamlit
-st.plotly_chart(fig_cliente_idade, use_container_width=True)
-
-
-# Seção 3: Análise de Categorias e Produtos
-st.markdown("## Análise de Categorias e Produtos")
-
-# Função para normalizar as categorias
-def normalize_category(category):
-    if isinstance(category, str) and category.startswith("["):
-        # Extrair a primeira categoria dentro da lista
-        category = category.strip("[]").split(",")[0].strip("'").strip()
-    if category in ["Supermarket", "Electronics"]:
-        return category
-    return None  # Ignorar outras categorias
-
-# Aplicar a função na coluna 'category'
-df["category_cleaned"] = df["category"].apply(normalize_category)
-
-# Filtrar os dados com base na região selecionada e categorias válidas
-df_filtered_categoria = df[df["category_cleaned"].notnull()]
-df_filtered_categoria = df_filtered_categoria if selected_region == "Todas" else df_filtered_categoria[df_filtered_categoria["region"] == selected_region]
-
-# Agrupar os dados por categoria limpa e calcular o total de itens faltantes
-df_categoria = df_filtered_categoria.groupby("category_cleaned").agg(
-    itens_faltantes=("items_missing", "sum")
-).reset_index()
-
-# Criar gráfico de barras para as categorias mais associadas a itens faltantes
-fig_categoria = px.bar(
-    df_categoria,
-    x="category_cleaned",
-    y="itens_faltantes",
-    title=f"Categorias mais Associadas a Itens Faltantes ({selected_region})",
-    labels={"category_cleaned": "Categoria", "itens_faltantes": "Itens Faltantes"},
-    color="category_cleaned"
-)
-
-# Exibir o gráfico no Streamlit
-st.plotly_chart(fig_categoria, use_container_width=True)
-
-# Seção 4: Tamanho do Pedido vs Itens Faltantes
+# Seção 3: Tamanho do Pedido vs Itens Faltantes
 st.markdown("## Tamanho do Pedido vs Itens Faltantes")
 
 # Filtrar os dados com base na região selecionada
@@ -259,3 +285,53 @@ fig_tamanho_pedido = px.bar(
 
 # Exibir o gráfico no Streamlit
 st.plotly_chart(fig_tamanho_pedido, use_container_width=True)
+
+# Seção 5: Tabelas Detalhadas de Produtos por Categoria
+st.markdown("## Tabelas Detalhadas de Produtos por Categoria")
+
+# Função para limpar os nomes dos produtos (remover colchetes e aspas)
+def clean_product_name(product_name):
+    if isinstance(product_name, str):
+        return product_name.strip("[]").replace("'", "").replace('"', "").strip()
+    return product_name
+
+# Aplicar a função na coluna 'product_name' para limpar os nomes dos produtos
+df_filtered_categoria["product_name_cleaned"] = df_filtered_categoria["product_name"].apply(clean_product_name)
+
+# Agrupar os dados por nome do produto e categoria, calcular as métricas
+df_tabela_produtos = df_filtered_categoria.groupby(["product_name_cleaned", "category_cleaned"]).agg(
+    quantidade_pedidos=("order_id", "count"),  # Número de pedidos
+    quantidade_faltantes=("items_missing", "sum"),  # Soma dos itens faltantes
+    valor_financeiro=("order_amount", "sum")  # Soma do valor financeiro
+).reset_index()
+
+# Separar as tabelas por categoria
+df_supermarket = df_tabela_produtos[df_tabela_produtos["category_cleaned"] == "Supermarket"].sort_values(
+    by=["quantidade_faltantes", "valor_financeiro"], ascending=False
+)
+
+df_electronics = df_tabela_produtos[df_tabela_produtos["category_cleaned"] == "Electronics"].sort_values(
+    by=["quantidade_faltantes", "valor_financeiro"], ascending=False
+)
+
+# Formatar os valores financeiros como moeda
+df_supermarket["valor_financeiro"] = df_supermarket["valor_financeiro"].apply(lambda x: f"$ {x:,.2f}")
+df_electronics["valor_financeiro"] = df_electronics["valor_financeiro"].apply(lambda x: f"$ {x:,.2f}")
+
+# Exibir a tabela para Supermarket
+st.markdown("### Supermarket")
+st.dataframe(df_supermarket.set_index("product_name_cleaned").rename(columns={
+    "category_cleaned": "Categoria",
+    "quantidade_pedidos": "Quantidade de Pedidos",
+    "quantidade_faltantes": "Quantidade de Itens Faltantes",
+    "valor_financeiro": "Valor Financeiro ($)"
+}), height=400)
+
+# Exibir a tabela para Electronics
+st.markdown("### Electronics")
+st.dataframe(df_electronics.set_index("product_name_cleaned").rename(columns={
+    "category_cleaned": "Categoria",
+    "quantidade_pedidos": "Quantidade de Pedidos",
+    "quantidade_faltantes": "Quantidade de Itens Faltantes",
+    "valor_financeiro": "Valor Financeiro ($)"
+}), height=400)
