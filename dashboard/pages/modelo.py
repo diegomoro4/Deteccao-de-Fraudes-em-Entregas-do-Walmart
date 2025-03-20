@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import pickle
+import joblib
 
 # Configuração do layout
 st.set_page_config(page_title="Modelo Preditivo", layout="wide")
@@ -27,8 +27,7 @@ st.markdown("---")
 # Carregar o modelo preditivo salvo em um arquivo .pkl
 def carregar_modelo():
     try:
-        with open("../modelo/gradient_boosting_model.pkl", "rb") as file:
-            modelo = pickle.load(file)
+        modelo = joblib.load("../modelo/gradient_boosting_model.pkl")
         return modelo
     except Exception as e:
         st.error(f"Erro ao carregar o modelo: {e}")
@@ -36,35 +35,130 @@ def carregar_modelo():
 
 modelo = carregar_modelo()
 
-if modelo is not None:
-    # Entrada do usuário
-    st.markdown("### Insira os Dados para Previsão")
-    idade_motorista = st.slider("Idade do Motorista", 18, 70, 35)
-    idade_cliente = st.slider("Idade do Cliente", 18, 100, 40)
-    itens_entregues = st.number_input("Itens Entregues", min_value=0, value=10)
-    itens_faltantes = st.number_input("Itens Faltantes", min_value=0, value=2)
-    valor_pedido = st.number_input("Valor Total do Pedido ($)", min_value=0.0, value=100.0)
+# Definir as colunas usadas no treinamento (extraídas do Jupyter Notebook)
+X_train_columns = [
+    # Variáveis Numéricas
+    "order_amount", "items_delivered", "Trips",
+    "driver_complaint_rate", "customer_complaint_rate", "is_night_delivery",
 
-    # Botão para realizar a previsão
+    # region (codificadas)
+    "region_Altamonte Springs", "region_Apopka", "region_Clermont",
+    "region_Kissimmee", "region_Orlando", "region_Sanford",
+    "region_Winter Park",
+
+    # delivery_period (codificadas)
+    "delivery_period_Manhã", "delivery_period_Noite", "delivery_period_Tarde",
+
+    # day_of_week (codificadas)
+    "day_of_week_Friday", "day_of_week_Monday", "day_of_week_Saturday",
+    "day_of_week_Sunday", "day_of_week_Thursday", "day_of_week_Tuesday",
+    "day_of_week_Wednesday",
+
+    # driver_age_group (codificadas)
+    "driver_age_group_18-25", "driver_age_group_26-35",
+    "driver_age_group_36-45", "driver_age_group_46-55",
+    "driver_age_group_56-65",
+
+    # customer_age_group (codificadas)
+    "customer_age_group_18-25", "customer_age_group_26-35",
+    "customer_age_group_36-45", "customer_age_group_46-55",
+    "customer_age_group_56-65", "customer_age_group_66-75",
+    "customer_age_group_76-85", "customer_age_group_85+",
+
+    # order_value_category (codificadas)
+    "order_value_category_low", "order_value_category_medium",
+    "order_value_category_high"
+]
+
+if modelo is not None:
+    st.markdown("### Insira os Dados para Previsão")
+    
+    # Widgets interativos para entrada manual de dados
+    order_amount = st.number_input("Valor Total do Pedido ($)", min_value=0.0, value=150.0)
+    region = st.selectbox("Região", ['Altamonte Springs', 'Apopka', 'Clermont', 
+                                     'Kissimmee', 'Orlando', 'Sanford', 
+                                     'Winter Park'])
+    items_delivered = st.number_input("Itens Entregues", min_value=0, value=5)
+    delivery_period = st.selectbox("Período da Entrega", ['Manhã', 'Noite', 
+                                                         'Tarde'])
+    day_of_week = st.selectbox("Dia da Semana", ["Friday", "Monday", "Saturday", 
+                                                 "Sunday", "Thursday", 
+                                                 "Tuesday", "Wednesday"])
+    driver_age_group = st.selectbox("Faixa Etária do Motorista", ['18-25', '26-35', 
+                                                                  '36-45', '46-55',
+                                                                  '56-65'])
+    customer_age_group = st.selectbox("Faixa Etária do Cliente", ['18-25', '26-35',
+                                                                  '36-45', '46-55',
+                                                                  '56-65', '66-75',
+                                                                  '76-85', '85+'])
+    Trips = st.number_input("Número de Viagens (Motorista)", min_value=0, value=10)
+    is_night_delivery = st.selectbox("Entrega Noturna?", [0, 1])
+    order_value_category = st.selectbox("Categoria do Valor do Pedido", ['low', 'medium', 'high'])
+
     if st.button("Realizar Previsão"):
         try:
-            # Criar array com os dados de entrada
-            dados_entrada = np.array([[idade_motorista, idade_cliente, itens_entregues, itens_faltantes, valor_pedido]])
-            
-            # Exibir os dados de entrada para depuração
-            st.write("Dados de Entrada:", dados_entrada)
+            # Criar DataFrame com os dados fornecidos pelo usuário
+            new_data = pd.DataFrame({
+                'order_amount': [order_amount],
+                'region': [region],
+                'items_delivered': [items_delivered],
+                'delivery_period': [delivery_period],
+                'day_of_week': [day_of_week],
+                'driver_age_group': [driver_age_group],
+                'Trips': [Trips],
+                'customer_age_group': [customer_age_group],
+                'is_night_delivery': [is_night_delivery],
+                'order_value_category': [order_value_category]
+            })
+
+            # Definir todas as categorias esperadas com base no treinamento
+            region_categories = ['Altamonte Springs', 'Apopka', 'Clermont', 'Kissimmee',
+                     'Orlando', 'Sanford', 'Winter Park']
+            delivery_period_categories = ['Manhã', 'Noite', 'Tarde']
+            day_of_week_categories = ["Friday", "Monday", "Saturday", 
+                                    "Sunday", "Thursday", 
+                                    "Tuesday", "Wednesday"]
+            driver_age_categories = ['18-25', '26-35', '36-45', 
+                                    '46-55', '56-65']
+            customer_age_categories = ['18-25', '26-35', '36-45',
+                                    '46-55', '56-65', 
+                                    '66-75', '76-85',
+                                    '85+']
+            order_value_categories = ['low', 'medium', 'high']
+
+            # Garantir que todas as categorias sejam representadas corretamente
+            new_data['region'] = pd.Categorical(new_data['region'], categories=region_categories)
+            new_data['delivery_period'] = pd.Categorical(new_data['delivery_period'], categories=delivery_period_categories)
+            new_data['day_of_week'] = pd.Categorical(new_data['day_of_week'], categories=day_of_week_categories)
+            new_data['driver_age_group'] = pd.Categorical(new_data['driver_age_group'], categories=driver_age_categories)
+            new_data['customer_age_group'] = pd.Categorical(new_data['customer_age_group'], categories=customer_age_categories)
+            new_data['order_value_category'] = pd.Categorical(new_data['order_value_category'], categories=order_value_categories)
+
+            # Pré-processar os dados
+            new_data = pd.get_dummies(new_data, columns=['region', 'delivery_period', 
+                                                         'day_of_week',
+                                                         'driver_age_group',
+                                                         'customer_age_group',
+                                                         'order_value_category'])
+
+            # Adicionar colunas ausentes e garantir a ordem correta
+            for col in X_train_columns:
+                if col not in new_data.columns:
+                    new_data[col] = 0
+            new_data = new_data[X_train_columns]
 
             # Fazer previsão usando o modelo carregado
-            previsao = modelo.predict(dados_entrada)
-            probabilidade = modelo.predict_proba(dados_entrada)
+            probabilities = modelo.predict_proba(new_data)[:, 1]
+            predictions = (probabilities >= 0.45).astype(int)
 
             # Exibir os resultados da previsão
             st.markdown("### Resultado da Previsão")
-            if previsao[0] == 1:
-                st.error(f"⚠️ Fraude Detectada! Probabilidade: {probabilidade[0][1]:.2%}")
+            if predictions[0] == 1:
+                st.error(f"⚠️ Fraude Detectada!\n Nivel de Confiança: {probabilities[0]:.2%}")
             else:
-                st.success(f"✅ Sem Fraude Detectada! Probabilidade: {probabilidade[0][0]:.2%}")
+                st.success(f"✅ Sem Fraude Detectada! Nivel de Confiança: {(1 - probabilities[0]):.2%}")
+
         except Exception as e:
             st.error(f"Erro ao realizar a previsão: {e}")
 else:
-    st.error("O modelo não foi carregado corretamente. Verifique o arquivo .pkl.")
+    st.error("O modelo não foi carregado corretamente.")
