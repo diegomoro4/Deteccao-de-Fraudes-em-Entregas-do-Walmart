@@ -12,8 +12,24 @@ df = load_data()
 # Configuração do layout
 st.set_page_config(page_title="Análise Detalhada de Itens Faltantes", layout="wide")
 
+# Banner ou imagem
+st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/Walmart_logo.svg/2560px-Walmart_logo.svg.png", width=150)
+
 # Título
-st.title("Análise Detalhada de Itens Faltantes 📊")
+st.title("Análise Detalhada de Itens Faltantes")
+
+# Introdução ao Dashboard
+st.markdown("""
+<div style="background-color:#f9f9f9; padding: 15px; border-radius: 10px;">
+    <p style="font-size: 16px;">         
+        Esta página apresenta uma análise detalhada sobre os itens faltantes nas entregas realizadas pelo Walmart.  
+        Aqui você encontrará informações sobre categorias de produtos, tendências temporais e tamanho dos pedidos.  
+        Use o filtro na barra lateral para explorar os dados por região específica ou visualizar o cenário geral.
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("---")
 
 # Barra lateral para filtros
 st.sidebar.title("Filtros")
@@ -45,7 +61,7 @@ df_filtered_categoria = df[df["category_cleaned"].notnull()]
 df_filtered_categoria = df_filtered_categoria if selected_region == "Todas" else df_filtered_categoria[df_filtered_categoria["region"] == selected_region]
 
 # Seção 1: KPIs Resumidos
-st.markdown("## KPIs Resumidos")
+st.markdown("### Indicadores-Chave de Desempenho (KPIs)")
 
 # Linha 1: Pedidos fraudulentos e itens faltantes (%)
 col1, col2, col3 = st.columns(3)
@@ -77,27 +93,42 @@ col3.metric(
 )
 
 # Linha 2: Produtos mais reportados
-col4, col5 = st.columns(2)
+# Função para limpar os nomes dos produtos (remover colchetes e aspas)
+def clean_product_name(product_name):
+    if isinstance(product_name, str):
+        return product_name.strip("[]").replace("'", "").replace('"', "").strip()
+    return product_name
 
-# Produto mais reportado por categoria
-produto_por_categoria = df_filtered_categoria.groupby("category_cleaned").agg(
-    produto_mais_faltante=("product_name", lambda x: x.value_counts().idxmax() if not x.empty else "Nenhum")
+# Agrupar os dados por categoria e produto, calcular o número de vezes que cada produto foi reportado como faltante
+produto_por_categoria = df_filtered_categoria.groupby(["category_cleaned", "product_name"]).agg(
+    vezes_reportado=("items_missing", "sum")  # Soma do número de itens faltantes
 ).reset_index()
 
-# Limpar os nomes dos produtos (remover colchetes e aspas)
-produto_por_categoria["produto_mais_faltante"] = produto_por_categoria["produto_mais_faltante"].apply(lambda x: x.strip("[]").replace("'", ""))
+# Limpar os nomes dos produtos
+produto_por_categoria["product_name"] = produto_por_categoria["product_name"].apply(clean_product_name)
 
-produto_supermarket = produto_por_categoria.loc[produto_por_categoria["category_cleaned"] == "Supermarket", "produto_mais_faltante"]
-produto_electronics = produto_por_categoria.loc[produto_por_categoria["category_cleaned"] == "Electronics", "produto_mais_faltante"]
+# Identificar o produto mais reportado por categoria
+produto_supermarket = produto_por_categoria[produto_por_categoria["category_cleaned"] == "Supermarket"].sort_values(
+    by="vezes_reportado", ascending=False).iloc[0]
+produto_electronics = produto_por_categoria[produto_por_categoria["category_cleaned"] == "Electronics"].sort_values(
+    by="vezes_reportado", ascending=False).iloc[0]
+
+# Exibir os KPIs para produtos mais reportados
+col4, col5 = st.columns(2)
 
 col4.metric(
-    "Produto Mais Reportado (Electronics)", 
-    produto_electronics.values[0] if not produto_electronics.empty else "Nenhum"
+    f"Produto Mais Reportado (Supermarket)",
+    f"{produto_supermarket['product_name']}",
+    f"Vezes Reportado: {produto_supermarket['vezes_reportado']}"
 )
+
 col5.metric(
-    "Produto Mais Reportado (Supermarket)", 
-    produto_supermarket.values[0] if not produto_supermarket.empty else "Nenhum"
+    f"Produto Mais Reportado (Electronics)",
+    f"{produto_electronics['product_name']}",
+    f"Vezes Reportado: {produto_electronics['vezes_reportado']}"
 )
+
+st.markdown("---")
 
 # Seção 2: Análise de Categorias e Produtos
 st.markdown("## Análise de Categorias e Produtos")
@@ -135,6 +166,16 @@ fig_categoria.update_traces(
 # Exibir o gráfico no Streamlit
 st.plotly_chart(fig_categoria, use_container_width=True)
 
+st.markdown("""
+<div style="background-color:#f9f9f9; padding: 15px; border-radius: 10px;">
+    <p style="font-size: 16px;">         
+        Este gráfico apresenta as categorias mais associadas a itens faltantes, juntamente com o impacto financeiro causado por esses problemas.  
+        Use o filtro na barra lateral para explorar os dados por região específica.
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("---")
 
 # Seção 3: Tendências Temporais
 st.markdown("## Tendências Temporais")
@@ -179,7 +220,16 @@ else:
         # Exibir o gráfico no Streamlit
         st.plotly_chart(fig_hora, use_container_width=True)
 
+st.markdown("""
+<div style="background-color:#f9f9f9; padding: 15px; border-radius: 10px;">
+    <p style="font-size: 16px;">         
+        Este gráfico mostra como os pedidos com itens faltantes variam ao longo do dia.  
+        Identificar padrões temporais pode ajudar a otimizar processos logísticos.
+    </p>
+</div>
+""", unsafe_allow_html=True)
 
+st.markdown("---")
 
 # Gráfico 2: Pedidos com Itens Faltantes por Dia da Semana
 
@@ -218,6 +268,16 @@ fig_dia.add_scatter(
 # Exibir o gráfico no Streamlit
 st.plotly_chart(fig_dia, use_container_width=True)
 
+st.markdown("""
+<div style="background-color:#f9f9f9; padding: 15px; border-radius: 10px;">
+    <p style="font-size: 16px;">         
+        Este gráfico apresenta a frequência de pedidos com itens faltantes ao longo da semana.  
+        Ele ajuda a identificar dias críticos que podem exigir atenção especial.
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("---")
 
 # Gráfico 3: Pedidos com Itens Faltantes por Mês
 
@@ -259,6 +319,17 @@ fig_mes.add_scatter(
 # Exibir o gráfico no Streamlit
 st.plotly_chart(fig_mes, use_container_width=True)
 
+st.markdown("""
+<div style="background-color:#f9f9f9; padding: 15px; border-radius: 10px;">
+    <p style="font-size: 16px;">         
+        Este gráfico mostra como os pedidos com itens faltantes variam ao longo dos meses.  
+        Ele ajuda a identificar períodos sazonais que podem estar associados a problemas nas entregas.
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("---")
+
 # Seção 3: Tamanho do Pedido vs Itens Faltantes
 st.markdown("## Tamanho do Pedido vs Itens Faltantes")
 
@@ -286,8 +357,24 @@ fig_tamanho_pedido = px.bar(
 # Exibir o gráfico no Streamlit
 st.plotly_chart(fig_tamanho_pedido, use_container_width=True)
 
+st.markdown("""
+<div style="background-color:#f9f9f9; padding: 15px; border-radius: 10px;">
+    <p style="font-size: 16px;">         
+        Este gráfico apresenta a relação entre o tamanho dos pedidos e os itens faltantes.  
+        Pedidos maiores podem estar associados a maior probabilidade de problemas.
+    </p>
+</div>
+""", unsafe_allow_html=True)
+
+st.markdown("---")
+
 # Seção 5: Tabelas Detalhadas de Produtos por Categoria
 st.markdown("## Tabelas Detalhadas de Produtos por Categoria")
+
+st.markdown("""
+* As tabelas abaixo destacam os produtos mais associados a problemas nas categorias Supermarket e Electronics.  
+* Os produtos estão ordenados por quantidade de itens faltantes e impacto financeiro.
+""")
 
 # Função para limpar os nomes dos produtos (remover colchetes e aspas)
 def clean_product_name(product_name):
@@ -327,6 +414,8 @@ st.dataframe(df_supermarket.set_index("product_name_cleaned").rename(columns={
     "valor_financeiro": "Valor Financeiro ($)"
 }), height=400)
 
+st.markdown("---")
+
 # Exibir a tabela para Electronics
 st.markdown("### Electronics")
 st.dataframe(df_electronics.set_index("product_name_cleaned").rename(columns={
@@ -335,3 +424,20 @@ st.dataframe(df_electronics.set_index("product_name_cleaned").rename(columns={
     "quantidade_faltantes": "Quantidade de Itens Faltantes",
     "valor_financeiro": "Valor Financeiro ($)"
 }), height=400)
+
+st.markdown("---")
+
+# Resumo Final
+st.markdown("""
+### Resumo Final
+- A categoria Supermarket apresenta o maior número de itens faltantes, com destaque para o produto Chicken Breast e Rice Cakes.
+- A categoria Electronics também apresenta problemas significativos, especialmente com produtos de menor tamanho como Mouse e Earbuds.
+- Análise de Tendências Temporais não parecem ter nenhuma ligação forte com os problemas de itens faltantes.
+""")
+
+st.markdown("---")
+
+st.markdown("""
+### Explore Mais
+Utilize o menu lateral para acessar análises detalhadas sobre produtos, motoristas e clientes.
+""")
