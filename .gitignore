@@ -15,4 +15,4 @@ data/processed/
 # Configurações e logs  
 __pycache__/  
 *.log  
-.DS_Store  
+.DS_Store  venv/
