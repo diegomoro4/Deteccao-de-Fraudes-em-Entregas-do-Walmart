@@ -72,7 +72,7 @@ X_train_columns = [
 
 if modelo is not None:
     st.markdown("### Insira os Dados para Previsão")
-    
+        
     # Widgets interativos para entrada manual de dados
     order_amount = st.number_input("Valor Total do Pedido ($)", min_value=0.0, value=150.0)
     region = st.selectbox("Região", ['Altamonte Springs', 'Apopka', 'Clermont', 
@@ -157,6 +157,33 @@ if modelo is not None:
                 st.error(f"⚠️ Fraude Detectada!\n Nivel de Confiança: {probabilities[0]:.2%}")
             else:
                 st.success(f"✅ Sem Fraude Detectada! Nivel de Confiança: {(1 - probabilities[0]):.2%}")
+
+            # Explicação sobre o nível de confiança
+            st.markdown("""
+            <div style="background-color:#f9f9f9; padding: 15px; border-radius: 10px;">
+                <p style="font-size: 14px;">         
+                    O nível de confiança indica a probabilidade calculada pelo modelo para cada classe. 
+                </p>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Exibir as probabilidades em um gráfico de barras
+            import plotly.express as px
+
+            # Dados para o gráfico
+            resultados = {
+                'Sem Fraude': (1 - probabilities[0]),
+                'Fraude': probabilities[0]
+            }
+
+            fig = px.pie(
+                names=list(resultados.keys()), 
+                values=list(resultados.values()), 
+                title="Distribuição das Probabilidades",
+                color_discrete_sequence=px.colors.qualitative.Plotly  # Paleta de cores
+            )
+
+            st.plotly_chart(fig)
 
         except Exception as e:
             st.error(f"Erro ao realizar a previsão: {e}")
