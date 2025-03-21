@@ -167,24 +167,6 @@ if modelo is not None:
             </div>
             """, unsafe_allow_html=True)
 
-            # Exibir as probabilidades em um gráfico de barras
-            import plotly.express as px
-
-            # Dados para o gráfico
-            resultados = {
-                'Sem Fraude': (1 - probabilities[0]),
-                'Fraude': probabilities[0]
-            }
-
-            fig = px.pie(
-                names=list(resultados.keys()), 
-                values=list(resultados.values()), 
-                title="Distribuição das Probabilidades",
-                color_discrete_sequence=px.colors.qualitative.Plotly  # Paleta de cores
-            )
-
-            st.plotly_chart(fig)
-
         except Exception as e:
             st.error(f"Erro ao realizar a previsão: {e}")
 else:
