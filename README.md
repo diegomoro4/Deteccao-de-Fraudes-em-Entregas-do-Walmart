@@ -2,7 +2,7 @@
 
 ## 🌐 Dashboard Online
 Acesse o dashboard interativo hospedado no Streamlit Cloud:
-[Dashboard Walmart](https://<link-do-dashboard-streamlit-cloud>)
+[Dashboard Walmart](https://github.com/diegomoro4/Deteccao-de-Fraudes-em-Entregas-do-Walmart)
 
 ## Objetivo do Projeto
 

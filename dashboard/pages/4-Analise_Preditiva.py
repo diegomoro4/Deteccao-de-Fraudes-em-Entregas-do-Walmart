@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import joblib
 from pathlib import Path
-import pandas as pd
 
 # Carregar os dados com caminho absoluto
 def load_data():
@@ -39,13 +38,25 @@ st.markdown("---")
 # Carregar o modelo preditivo salvo em um arquivo .pkl
 def carregar_modelo():
     try:
-        modelo = joblib.load("../modelo/gradient_boosting_model.pkl")
-        return modelo
+        # Caminho absoluto baseado na raiz do projeto
+        base_dir = Path(__file__).resolve().parent.parent.parent  # Sobe três níveis para "Projeto/"
+        modelo_path = base_dir / "modelo" / "gradient_boosting_model.pkl"
+        
+        if not modelo_path.exists():
+            raise FileNotFoundError(f"O arquivo do modelo não foi encontrado em: {modelo_path}")
+        
+        return joblib.load(modelo_path)
     except Exception as e:
         st.error(f"Erro ao carregar o modelo: {e}")
         return None
 
+# Carregar o modelo
 modelo = carregar_modelo()
+
+if modelo is not None:
+    st.success("Modelo carregado com sucesso!")
+else:
+    st.error("O modelo não foi carregado corretamente.")
 
 # Definir as colunas usadas no treinamento (extraídas do Jupyter Notebook)
 X_train_columns = [
