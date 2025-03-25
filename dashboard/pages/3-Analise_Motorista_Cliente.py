@@ -1,12 +1,16 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+from pathlib import Path
+
+# Carregar os dados com caminho absoluto
+def load_data():
+    # Caminho absoluto baseado na raiz do projeto
+    base_dir = Path(__file__).resolve().parent.parent.parent  # Sobe três níveis para "Projeto/"
+    file_path = base_dir / "data" / "processed" / "df_final_walmart.csv"
+    return pd.read_csv(file_path)
 
 # Carregar os dados
-def load_data():
-    df = pd.read_csv("../data/processed/df_final_walmart.csv")
-    return df
-
 df = load_data()
 
 # Configuração do layout

@@ -2,6 +2,18 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
+from pathlib import Path
+import pandas as pd
+
+# Carregar os dados com caminho absoluto
+def load_data():
+    # Caminho absoluto baseado na raiz do projeto
+    base_dir = Path(__file__).resolve().parent.parent.parent  # Sobe três níveis para "Projeto/"
+    file_path = base_dir / "data" / "processed" / "df_final_walmart.csv"
+    return pd.read_csv(file_path)
+
+# Carregar os dados
+df = load_data()
 
 # Configuração do layout
 st.set_page_config(page_title="Modelo Preditivo", layout="wide")
